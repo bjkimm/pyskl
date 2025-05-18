@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from mmcv.cnn import build_norm_layer
+from ....utils.nn import build_norm_layer
 
 from .init_func import bn_init, conv_init
 

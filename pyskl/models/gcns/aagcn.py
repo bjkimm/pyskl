@@ -1,7 +1,7 @@
 import copy as cp
 import torch
 import torch.nn as nn
-from mmcv.runner import load_checkpoint
+from ...utils.nn import load_checkpoint
 
 from ...utils import Graph, cache_checkpoint
 from ..builder import BACKBONES

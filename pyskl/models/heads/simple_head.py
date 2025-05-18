@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from mmcv.cnn import normal_init
+from ...utils.nn import normal_init
 
 from ..builder import HEADS
 from .base import BaseHead

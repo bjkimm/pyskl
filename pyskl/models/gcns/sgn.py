@@ -1,6 +1,6 @@
 import math
 import torch
-from mmcv.cnn import ConvModule
+from ...utils.nn import ConvModule
 from torch import nn
 
 from .utils import unit_sgn

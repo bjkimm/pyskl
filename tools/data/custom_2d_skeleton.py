@@ -2,16 +2,16 @@
 import argparse
 import copy as cp
 import decord
-import mmcv
 import numpy as np
 import os
 import os.path as osp
+import torch
 import torch.distributed as dist
-from mmcv.runner import get_dist_info, init_dist
 from tqdm import tqdm
 
 import pyskl  # noqa: F401
 from pyskl.smp import mrlines
+from pyskl.utils import dump, get_dist_info, load
 
 try:
     import mmdet  # noqa: F401
@@ -137,7 +137,8 @@ def main():
         my_part = annos
         os.makedirs(args.tmpdir, exist_ok=True)
     else:
-        init_dist('pytorch', backend='nccl')
+        dist.init_process_group(backend='nccl')
+        torch.cuda.set_device(args.local_rank)
         rank, world_size = get_dist_info()
         if rank == 0:
             os.makedirs(args.tmpdir, exist_ok=True)
@@ -170,13 +171,13 @@ def main():
         results.append(anno)
 
     if args.non_dist:
-        mmcv.dump(results, args.out)
+        dump(results, args.out)
     else:
-        mmcv.dump(results, osp.join(args.tmpdir, f'part_{rank}.pkl'))
+        dump(results, osp.join(args.tmpdir, f'part_{rank}.pkl'))
         dist.barrier()
 
         if rank == 0:
-            parts = [mmcv.load(osp.join(args.tmpdir, f'part_{i}.pkl')) for i in range(world_size)]
+            parts = [load(osp.join(args.tmpdir, f'part_{i}.pkl')) for i in range(world_size)]
             rem = len(annos) % world_size
             if rem:
                 for i in range(rem, world_size):
@@ -186,7 +187,7 @@ def main():
             for res in zip(*parts):
                 ordered_results.extend(list(res))
             ordered_results = ordered_results[:len(annos)]
-            mmcv.dump(ordered_results, args.out)
+            dump(ordered_results, args.out)
 
 
 if __name__ == '__main__':

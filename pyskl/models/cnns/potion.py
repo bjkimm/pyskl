@@ -1,4 +1,4 @@
-from mmcv.cnn import ConvModule, constant_init, kaiming_init
+from ...utils.nn import ConvModule, constant_init, kaiming_init
 from torch import nn
 
 from ..builder import BACKBONES

@@ -14,6 +14,7 @@ from pyskl.apis import init_random_seed, train_model
 from pyskl.datasets import build_dataset
 from pyskl.models import build_model
 from pyskl.utils import collect_env, get_root_logger, mc_off, mc_on, test_port
+from pyskl.utils.collect_env import get_git_hash
 
 
 def parse_args():
