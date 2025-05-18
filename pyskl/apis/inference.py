@@ -8,31 +8,29 @@ import warnings
 from collections.abc import Mapping, Sequence
 from torch.utils.data._utils.collate import default_collate
 
-try:  # optional dependency
-    from mmcv.parallel import collate, scatter  # type: ignore
-except Exception:  # pragma: no cover - mmcv not installed
-    def collate(batch, samples_per_gpu=1):
-        return default_collate(batch)
 
-    def scatter(inputs, devices):
-        assert len(devices) == 1
-        device = devices[0]
+def collate(batch, samples_per_gpu=1):
+    """A minimal replacement for ``mmcv.parallel.collate``."""
+    return default_collate(batch)
 
-        def _scatter(obj):
-            if isinstance(obj, torch.Tensor):
-                return obj.to(device)
-            if isinstance(obj, Mapping):
-                return {k: _scatter(v) for k, v in obj.items()}
-            if isinstance(obj, Sequence) and not isinstance(obj, (str, bytes)):
-                return type(obj)(_scatter(v) for v in obj)
-            return obj
 
-        return [_scatter(inputs)]
+def scatter(inputs, devices):
+    """A minimal replacement for ``mmcv.parallel.scatter`` for a single GPU."""
+    assert len(devices) == 1
+    device = devices[0]
 
-try:
-    from mmcv.runner import load_checkpoint  # type: ignore
-except Exception:  # pragma: no cover - mmcv not installed
-    from pyskl.utils import load_checkpoint
+    def _scatter(obj):
+        if isinstance(obj, torch.Tensor):
+            return obj.to(device)
+        if isinstance(obj, Mapping):
+            return {k: _scatter(v) for k, v in obj.items()}
+        if isinstance(obj, Sequence) and not isinstance(obj, (str, bytes)):
+            return type(obj)(_scatter(v) for v in obj)
+        return obj
+
+    return [_scatter(inputs)]
+
+from pyskl.utils import load_checkpoint
 from operator import itemgetter
 
 from pyskl.core import OutputHook
