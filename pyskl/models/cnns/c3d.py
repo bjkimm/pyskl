@@ -1,7 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch.nn as nn
-from mmcv.cnn import ConvModule, kaiming_init
-from mmcv.runner import load_checkpoint
+from ...utils.nn import ConvModule, kaiming_init, load_checkpoint
 
 from ...utils import cache_checkpoint, get_root_logger
 from ..builder import BACKBONES

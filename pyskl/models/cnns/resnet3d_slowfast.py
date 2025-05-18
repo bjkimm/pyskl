@@ -2,9 +2,8 @@
 import torch
 import torch.nn as nn
 import warnings
-from mmcv.cnn import ConvModule, kaiming_init
-from mmcv.runner import _load_checkpoint, load_checkpoint
-from mmcv.utils import print_log
+from ...utils.nn import ConvModule, kaiming_init, _load_checkpoint, load_checkpoint
+from ...utils import print_log
 
 from ...utils import cache_checkpoint, get_root_logger
 from ..builder import BACKBONES

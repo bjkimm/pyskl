@@ -1,11 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-try:
-    from mmcv.cnn import MODELS as MMCV_MODELS
-except ImportError:  # pragma: no cover
-    MMCV_MODELS = None
 from ..utils import Registry
 
-MODELS = Registry('models', parent=MMCV_MODELS)
+MODELS = Registry('models')
 BACKBONES = MODELS
 HEADS = MODELS
 RECOGNIZERS = MODELS
