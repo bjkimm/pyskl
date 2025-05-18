@@ -1,8 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import mmcv
 import os.path as osp
 
-from ..utils import get_root_logger
+from ..utils import get_root_logger, load
 from .base import BaseDataset
 from .builder import DATASETS
 
@@ -89,7 +88,7 @@ class PoseDataset(BaseDataset):
         return self.load_pkl_annotations()
 
     def load_pkl_annotations(self):
-        data = mmcv.load(self.ann_file)
+        data = load(self.ann_file)
 
         if self.split:
             split, data = data['split'], data['annotations']

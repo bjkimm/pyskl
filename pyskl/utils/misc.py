@@ -6,11 +6,68 @@ import multiprocessing as mp
 import numpy as np
 import os
 import os.path as osp
+import pickle
 import socket
+import time
 import warnings
-from mmcv import load
-from mmcv.runner import get_dist_info
-from mmcv.utils import get_logger
+import json
+import yaml
+import torch.distributed as dist
+
+
+def load(file):
+    if file.endswith(('.pkl', '.pickle')):
+        with open(file, 'rb') as f:
+            return pickle.load(f)
+    elif file.endswith(('.yml', '.yaml')):
+        with open(file, 'r') as f:
+            return yaml.safe_load(f)
+    elif file.endswith('.json'):
+        with open(file, 'r') as f:
+            return json.load(f)
+    else:
+        with open(file, 'r') as f:
+            return f.read()
+
+
+def dump(obj, file):
+    if file.endswith(('.pkl', '.pickle')):
+        with open(file, 'wb') as f:
+            pickle.dump(obj, f)
+    elif file.endswith(('.yml', '.yaml')):
+        with open(file, 'w') as f:
+            yaml.safe_dump(obj, f)
+    elif file.endswith('.json'):
+        with open(file, 'w') as f:
+            json.dump(obj, f)
+    else:
+        with open(file, 'w') as f:
+            f.write(str(obj))
+
+
+def get_dist_info():
+    if dist.is_available() and dist.is_initialized():
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+    else:
+        rank = 0
+        world_size = 1
+    return rank, world_size
+
+
+def get_logger(name, log_file=None, log_level=logging.INFO):
+    logger = logging.getLogger(name)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    logger.setLevel(log_level)
+    if not logger.handlers:
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
+    if log_file is not None and not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    return logger
 
 from ..smp import download_file
 
@@ -95,7 +152,7 @@ def test_port(ip, port):
 
 
 def get_root_logger(log_file=None, log_level=logging.INFO):
-    """Use ``get_logger`` method in mmcv to get the root logger.
+    """Get the root logger.
     The logger will be initialized if it has not been initialized. By default a
     StreamHandler will be added. If ``log_file`` is specified, a FileHandler
     will also be added. The name of the root logger is the top-level package
@@ -110,6 +167,13 @@ def get_root_logger(log_file=None, log_level=logging.INFO):
         :obj:`logging.Logger`: The root logger.
     """
     return get_logger(__name__.split('.')[0], log_file, log_level)
+
+
+def print_log(msg, logger=None, level=logging.INFO):
+    if logger is None:
+        print(msg)
+    else:
+        logger.log(level, msg)
 
 
 def cache_checkpoint(filename, cache_dir='.cache'):
