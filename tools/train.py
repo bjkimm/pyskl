@@ -10,13 +10,13 @@ import torch.distributed as dist
 from mmcv import Config
 from mmcv import digit_version as dv
 from mmcv.runner import get_dist_info, init_dist, set_random_seed
-from mmcv.utils import get_git_hash
 
 from pyskl import __version__
 from pyskl.apis import init_random_seed, train_model
 from pyskl.datasets import build_dataset
 from pyskl.models import build_model
 from pyskl.utils import collect_env, get_root_logger, mc_off, mc_on, test_port
+from pyskl.utils.collect_env import get_git_hash
 
 
 def parse_args():
