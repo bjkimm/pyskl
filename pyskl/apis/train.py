@@ -5,13 +5,13 @@ import os.path as osp
 import time
 import torch
 import torch.distributed as dist
-from mmcv.engine import multi_gpu_test
-from mmcv.parallel import MMDistributedDataParallel
-from mmcv.runner import DistSamplerSeedHook, EpochBasedRunner, OptimizerHook, build_optimizer, get_dist_info
+from torch.nn.parallel import DistributedDataParallel
 
-from ..core import DistEvalHook
+from .testing import multi_gpu_test
+from ..utils import (cache_checkpoint, get_dist_info, get_root_logger,
+                     build_optimizer)
+
 from ..datasets import build_dataloader, build_dataset
-from ..utils import cache_checkpoint, get_root_logger
 
 
 def init_random_seed(seed=None, device='cuda'):
@@ -88,39 +88,31 @@ def train_model(model,
 
     # put model on gpus
     find_unused_parameters = cfg.get('find_unused_parameters', True)
-    # Sets the `find_unused_parameters` parameter in
-    # torch.nn.parallel.DistributedDataParallel
-    model = MMDistributedDataParallel(
+    model = DistributedDataParallel(
         model.cuda(),
         device_ids=[torch.cuda.current_device()],
         broadcast_buffers=False,
         find_unused_parameters=find_unused_parameters)
 
-    # build runner
     optimizer = build_optimizer(model, cfg.optimizer)
+    work_dir = cfg.work_dir
+    os.makedirs(work_dir, exist_ok=True)
+    max_epochs = cfg.total_epochs
+    start_epoch = 0
 
-    Runner = EpochBasedRunner
-    runner = Runner(
-        model,
-        optimizer=optimizer,
-        work_dir=cfg.work_dir,
-        logger=logger,
-        meta=meta)
-    # an ugly workaround to make .log and .log.json filenames the same
-    runner.timestamp = timestamp
+    if cfg.get('resume_from'):
+        checkpoint = torch.load(cfg.resume_from, map_location='cpu')
+        model.load_state_dict(checkpoint['state_dict'])
+        optimizer.load_state_dict(checkpoint.get('optimizer', {}))
+        start_epoch = checkpoint.get('epoch', 0)
+    elif cfg.get('load_from'):
+        cfg.load_from = cache_checkpoint(cfg.load_from)
+        checkpoint = torch.load(cfg.load_from, map_location='cpu')
+        state_dict = checkpoint.get('state_dict', checkpoint)
+        if list(state_dict.keys())[0].startswith('module.'):
+            state_dict = {k[7:]: v for k, v in state_dict.items()}
+        model.load_state_dict(state_dict, strict=False)
 
-    if 'type' not in cfg.optimizer_config:
-        optimizer_config = OptimizerHook(**cfg.optimizer_config)
-    else:
-        optimizer_config = cfg.optimizer_config
-
-    # register hooks
-    runner.register_training_hooks(cfg.lr_config, optimizer_config,
-                                   cfg.checkpoint_config, cfg.log_config,
-                                   cfg.get('momentum_config', None))
-    runner.register_hook(DistSamplerSeedHook())
-
-    eval_hook = None
     if validate:
         eval_cfg = cfg.get('evaluation', {})
         val_dataset = build_dataset(cfg.data.val, dict(test_mode=True))
@@ -132,16 +124,46 @@ def train_model(model,
         dataloader_setting = dict(dataloader_setting,
                                   **cfg.data.get('val_dataloader', {}))
         val_dataloader = build_dataloader(val_dataset, **dataloader_setting)
-        eval_hook = DistEvalHook(val_dataloader, **eval_cfg)
-        runner.register_hook(eval_hook)
 
-    if cfg.get('resume_from', None):
-        runner.resume(cfg.resume_from)
-    elif cfg.get('load_from', None):
-        cfg.load_from = cache_checkpoint(cfg.load_from)
-        runner.load_checkpoint(cfg.load_from)
+    for epoch in range(start_epoch, max_epochs):
+        for loader in data_loaders:
+            if hasattr(loader.sampler, 'set_epoch'):
+                loader.sampler.set_epoch(epoch)
+        model.train()
+        for data in data_loaders[0]:
+            outputs = model.module.train_step(data, optimizer)
+            loss = outputs['loss']
+            optimizer.zero_grad()
+            loss.backward()
+            grad_clip = cfg.optimizer_config.get('grad_clip')
+            if grad_clip is not None:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), **grad_clip)
+            optimizer.step()
 
-    runner.run(data_loaders, cfg.workflow, cfg.total_epochs)
+        checkpoint = {
+            'state_dict': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'epoch': epoch + 1
+        }
+        ckpt_path = osp.join(work_dir, f'epoch_{epoch + 1}.pth')
+        torch.save(checkpoint, ckpt_path)
+        torch.save(checkpoint, osp.join(work_dir, 'latest.pth'))
+
+        if validate and (epoch + 1) % eval_cfg.get('interval', 1) == 0:
+            outputs = multi_gpu_test(model, val_dataloader, eval_cfg.get('tmpdir'))
+            rank, _ = get_dist_info()
+            if rank == 0:
+                eval_params = {
+                    k: v
+                    for k, v in eval_cfg.items()
+                    if k not in [
+                        'interval', 'tmpdir', 'start', 'save_best', 'rule',
+                        'by_epoch', 'broadcast_bn_buffers'
+                    ]
+                }
+                eval_res = val_dataset.evaluate(outputs, **eval_params)
+                for metric_name, val in eval_res.items():
+                    logger.info(f'{metric_name}: {val:.04f}')
 
     dist.barrier()
     time.sleep(2)
@@ -149,60 +171,53 @@ def train_model(model,
     if test['test_last'] or test['test_best']:
         best_ckpt_path = None
         if test['test_best']:
-            assert eval_hook is not None
-            best_ckpt_path = None
-            ckpt_paths = [x for x in os.listdir(cfg.work_dir) if 'best' in x]
-            ckpt_paths = [x for x in ckpt_paths if x.endswith('.pth')]
+            ckpt_paths = [x for x in os.listdir(work_dir) if 'best' in x and x.endswith('.pth')]
             if len(ckpt_paths) == 0:
                 logger.info('Warning: test_best set, but no ckpt found')
                 test['test_best'] = False
                 if not test['test_last']:
                     return
             elif len(ckpt_paths) > 1:
-                epoch_ids = [
-                    int(x.split('epoch_')[-1][:-4]) for x in ckpt_paths
-                ]
-                best_ckpt_path = ckpt_paths[np.argmax(epoch_ids)]
+                epoch_ids = [int(x.split('epoch_')[-1][:-4]) for x in ckpt_paths]
+                best_ckpt_path = osp.join(work_dir, ckpt_paths[np.argmax(epoch_ids)])
             else:
-                best_ckpt_path = ckpt_paths[0]
-            if best_ckpt_path:
-                best_ckpt_path = osp.join(cfg.work_dir, best_ckpt_path)
+                best_ckpt_path = osp.join(work_dir, ckpt_paths[0])
 
         test_dataset = build_dataset(cfg.data.test, dict(test_mode=True))
-        tmpdir = cfg.get('evaluation', {}).get('tmpdir', osp.join(cfg.work_dir, 'tmp'))
         dataloader_setting = dict(
             videos_per_gpu=cfg.data.get('videos_per_gpu', 1),
             workers_per_gpu=cfg.data.get('workers_per_gpu', 1),
             persistent_workers=cfg.data.get('persistent_workers', False),
             shuffle=False)
-        dataloader_setting = dict(dataloader_setting,
-                                  **cfg.data.get('test_dataloader', {}))
-
+        dataloader_setting = dict(dataloader_setting, **cfg.data.get('test_dataloader', {}))
         test_dataloader = build_dataloader(test_dataset, **dataloader_setting)
 
         names, ckpts = [], []
-
         if test['test_last']:
             names.append('last')
-            ckpts.append(None)
+            ckpts.append(osp.join(work_dir, 'latest.pth'))
         if test['test_best']:
             names.append('best')
             ckpts.append(best_ckpt_path)
 
         for name, ckpt in zip(names, ckpts):
             if ckpt is not None:
-                runner.load_checkpoint(ckpt)
+                checkpoint = torch.load(ckpt, map_location='cpu')
+                state_dict = checkpoint.get('state_dict', checkpoint)
+                if list(state_dict.keys())[0].startswith('module.'):
+                    state_dict = {k[7:]: v for k, v in state_dict.items()}
+                model.load_state_dict(state_dict, strict=False)
 
-            outputs = multi_gpu_test(runner.model, test_dataloader, tmpdir)
+            outputs = multi_gpu_test(model, test_dataloader, cfg.get('evaluation', {}).get('tmpdir'))
             rank, _ = get_dist_info()
             if rank == 0:
-                out = osp.join(cfg.work_dir, f'{name}_pred.pkl')
+                out = osp.join(work_dir, f'{name}_pred.pkl')
                 test_dataset.dump_results(outputs, out)
 
                 eval_cfg = cfg.get('evaluation', {})
                 for key in [
-                        'interval', 'tmpdir', 'start',
-                        'save_best', 'rule', 'by_epoch', 'broadcast_bn_buffers'
+                        'interval', 'tmpdir', 'start', 'save_best', 'rule', 'by_epoch',
+                        'broadcast_bn_buffers'
                 ]:
                     eval_cfg.pop(key, None)
 

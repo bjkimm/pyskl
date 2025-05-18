@@ -1,20 +1,17 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 # flake8: noqa: E722
 import argparse
-import mmcv
 import os
 import os.path as osp
 import time
 import torch
 import torch.distributed as dist
-from mmcv import Config
-from mmcv import digit_version as dv
-from mmcv import load
-from mmcv.cnn import fuse_conv_bn
-from mmcv.engine import multi_gpu_test
-from mmcv.fileio.io import file_handlers
-from mmcv.parallel import MMDistributedDataParallel
-from mmcv.runner import get_dist_info, init_dist, load_checkpoint
+from pyskl.utils import (Config, digit_version as dv, fuse_conv_bn,
+                         get_dist_info, init_dist, load_checkpoint)
+from pyskl.apis.testing import multi_gpu_test
+from torch.nn.parallel import DistributedDataParallel
+
+FILE_HANDLERS = {'json', 'pickle', 'pkl', 'yaml', 'yml'}
 
 from pyskl.datasets import build_dataloader, build_dataset
 from pyskl.models import build_model
@@ -98,7 +95,7 @@ def inference_pytorch(args, cfg, data_loader):
     if args.fuse_conv_bn:
         model = fuse_conv_bn(model)
 
-    model = MMDistributedDataParallel(
+    model = DistributedDataParallel(
         model.cuda(),
         device_ids=[torch.cuda.current_device()],
         broadcast_buffers=False)
@@ -122,9 +119,10 @@ def main():
     if args.eval:
         eval_cfg['metrics'] = args.eval
 
-    mmcv.mkdir_or_exist(osp.dirname(out))
+    os.makedirs(osp.dirname(out), exist_ok=True)
     _, suffix = osp.splitext(out)
-    assert suffix[1:] in file_handlers, ('The format of the output file should be json, pickle or yaml')
+    assert suffix[1:] in FILE_HANDLERS, (
+        'The format of the output file should be json, pickle or yaml')
 
     # set cudnn benchmark
     if cfg.get('cudnn_benchmark', False):

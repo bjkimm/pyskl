@@ -1,5 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from mmcv.engine import multi_gpu_test, single_gpu_test
+from .testing import multi_gpu_test, single_gpu_test
 
 from .inference import inference_recognizer, init_recognizer
 from .train import init_random_seed, train_model

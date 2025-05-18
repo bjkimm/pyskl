@@ -12,7 +12,10 @@ import time
 import warnings
 import json
 import yaml
+import torch
 import torch.distributed as dist
+import random
+import subprocess
 
 
 def load(file):
@@ -53,6 +56,67 @@ def get_dist_info():
         rank = 0
         world_size = 1
     return rank, world_size
+
+
+def init_dist(launcher='pytorch', backend='nccl'):
+    """Initialize distributed environment."""
+    if dist.is_initialized():
+        return
+    if launcher in ['pytorch', 'slurm']:
+        rank = int(os.environ.get('RANK', os.environ.get('SLURM_PROCID', 0)))
+        world_size = int(os.environ.get('WORLD_SIZE', os.environ.get('SLURM_NTASKS', 1)))
+        local_rank = int(os.environ.get('LOCAL_RANK', rank % max(torch.cuda.device_count(), 1)))
+        os.environ.setdefault('RANK', str(rank))
+        os.environ.setdefault('WORLD_SIZE', str(world_size))
+        torch.cuda.set_device(local_rank)
+        dist.init_process_group(backend=backend, init_method='env://',
+                                rank=rank, world_size=world_size)
+    else:
+        raise ValueError(f'Unsupported launcher type: {launcher}')
+
+
+def set_random_seed(seed, deterministic=False):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    if deterministic:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+
+def digit_version(version_str):
+    return tuple(int(x) for x in version_str.split('.') if x.isdigit())
+
+
+def get_git_hash(digits=7):
+    try:
+        sha = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+    except Exception:
+        sha = '0' * digits
+    return sha[:digits]
+
+
+def build_optimizer(model, cfg):
+    cfg = cfg.copy()
+    optim_type = cfg.pop('type')
+    optimizer_cls = getattr(torch.optim, optim_type)
+    return optimizer_cls(model.parameters(), **cfg)
+
+
+def fuse_conv_bn(model):
+    """A simplified fuse conv and bn implementation."""
+    # Placeholder: no actual fusion performed
+    return model
+
+
+def load_checkpoint(model, filename, map_location='cpu'):
+    checkpoint = torch.load(filename, map_location=map_location)
+    state_dict = checkpoint.get('state_dict', checkpoint)
+    if len(state_dict) > 0 and list(state_dict.keys())[0].startswith('module.'):
+        state_dict = {k[7:]: v for k, v in state_dict.items()}
+    model.load_state_dict(state_dict, strict=False)
+    return checkpoint
 
 
 def get_logger(name, log_file=None, log_level=logging.INFO):
