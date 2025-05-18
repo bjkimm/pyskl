@@ -93,7 +93,7 @@ dependencies:
     - kiwisolver==1.4.4
     - matplotlib==3.5.3
     - matplotlib-inline==0.1.6
-    # mmcv-full is optional; install it manually if needed
+    # mmcv-full is optional; install it only when using detection or pose modules
     - mmdet==2.23.0
     - mmpose==0.24.0
     - moviepy==1.0.3

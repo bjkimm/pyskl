@@ -1,7 +1,7 @@
 decord>=0.6.0
 fvcore
 matplotlib
-# mmcv is optional; install mmcv or mmcv-full manually if needed
+# mmcv is optional; install it only if using detection or pose modules
 mmdet==2.23.0
 mmpose==0.24.0
 moviepy
