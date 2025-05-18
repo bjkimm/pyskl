@@ -1,22 +1,23 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import numpy as np
 
-try:  # optional dependency
-    from mmcv.runner import DistEvalHook as BasicDistEvalHook  # type: ignore
-except Exception:  # pragma: no cover - mmcv not installed
-    class BasicDistEvalHook:
-        def __init__(self, *args, interval=1, by_epoch=True, start=None, **kwargs):
-            self.interval = interval
-            self.by_epoch = by_epoch
-            self.start = start
 
-        def every_n_epochs(self, runner, n):
-            return (runner.epoch + 1) % n == 0
+class BasicDistEvalHook:
+    """A minimal substitute for ``mmcv.runner.DistEvalHook``."""
 
-        def _should_evaluate(self, runner):
-            if self.start is not None and (runner.epoch + 1) < self.start:
-                return False
-            return self.every_n_epochs(runner, self.interval)
+    def __init__(self, *args, interval=1, by_epoch=True, start=None, save_best=None, **kwargs):
+        self.interval = interval
+        self.by_epoch = by_epoch
+        self.start = start
+        self.save_best = save_best
+
+    def every_n_epochs(self, runner, n):
+        return (runner.epoch + 1) % n == 0
+
+    def _should_evaluate(self, runner):
+        if self.start is not None and (runner.epoch + 1) < self.start:
+            return False
+        return self.every_n_epochs(runner, self.interval)
 
 
 class DistEvalHook(BasicDistEvalHook):
