@@ -1,27 +1,52 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import mmcv
 import numpy as np
 import os
 import os.path as osp
 import re
 import torch
 import warnings
-from mmcv.parallel import collate, scatter
-from mmcv.runner import load_checkpoint
+from collections.abc import Mapping, Sequence
+from torch.utils.data._utils.collate import default_collate
+
+try:  # optional dependency
+    from mmcv.parallel import collate, scatter  # type: ignore
+except Exception:  # pragma: no cover - mmcv not installed
+    def collate(batch, samples_per_gpu=1):
+        return default_collate(batch)
+
+    def scatter(inputs, devices):
+        assert len(devices) == 1
+        device = devices[0]
+
+        def _scatter(obj):
+            if isinstance(obj, torch.Tensor):
+                return obj.to(device)
+            if isinstance(obj, Mapping):
+                return {k: _scatter(v) for k, v in obj.items()}
+            if isinstance(obj, Sequence) and not isinstance(obj, (str, bytes)):
+                return type(obj)(_scatter(v) for v in obj)
+            return obj
+
+        return [_scatter(inputs)]
+
+try:
+    from mmcv.runner import load_checkpoint  # type: ignore
+except Exception:  # pragma: no cover - mmcv not installed
+    from pyskl.utils import load_checkpoint
 from operator import itemgetter
 
 from pyskl.core import OutputHook
 from pyskl.datasets.pipelines import Compose
 from pyskl.models import build_recognizer
-from pyskl.utils import cache_checkpoint
+from pyskl.utils import Config, cache_checkpoint
 
 
 def init_recognizer(config, checkpoint=None, device='cuda:0', **kwargs):
     """Initialize a recognizer from config file.
 
     Args:
-        config (str | :obj:`mmcv.Config`): Config file path or the config
-            object.
+        config (str | :class:`pyskl.utils.Config` | str): Config file path or
+            the config object.
         checkpoint (str | None, optional): Checkpoint path/url. If set to None,
             the model will not load any weights. Default: None.
         device (str | :obj:`torch.device`): The desired device of returned
@@ -36,8 +61,8 @@ def init_recognizer(config, checkpoint=None, device='cuda:0', **kwargs):
                       'arbitrarily. ')
 
     if isinstance(config, str):
-        config = mmcv.Config.fromfile(config)
-    elif not isinstance(config, mmcv.Config):
+        config = Config.fromfile(config)
+    elif not isinstance(config, Config):
         raise TypeError('config must be a filename or Config object, '
                         f'but got {type(config)}')
 

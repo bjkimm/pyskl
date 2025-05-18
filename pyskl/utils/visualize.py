@@ -5,7 +5,7 @@ import moviepy.editor as mpy
 import mpl_toolkits.mplot3d.axes3d as p3
 import numpy as np
 from matplotlib.animation import FuncAnimation
-from mmcv import load
+from .misc import load
 from tqdm import tqdm
 
 from pyskl.smp import h2r

@@ -3,7 +3,7 @@ import multiprocessing as mp
 import numpy as np
 import os
 import os.path as osp
-from mmcv import dump
+from pyskl.utils import dump
 from tqdm import tqdm
 
 from pyskl.smp import mrlines
