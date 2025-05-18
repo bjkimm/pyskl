@@ -125,5 +125,4 @@ if __name__ == '__main__':
         url='https://github.com/kennymckormick/pyskl',
         license='Apache License 2.0',
         install_requires=parse_requirements('requirements.txt'),
-        extras_require={'mmcv': ['mmcv-full']},
         zip_safe=False)

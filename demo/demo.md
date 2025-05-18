@@ -4,7 +4,7 @@ We currently provide an offline GPU-demo for skeleton action recognition and an 
 
 ## Preparation
 
-- Before running the skeleton action recognition demo, make sure you have installed `mmcv-full`, `mmpose` and `mmdet`. We recommend you to directly use the provided conda environment, with all necessary dependencies included:
+- Before running the skeleton action recognition demo, make sure you have installed `mmpose` and `mmdet`. We recommend you to directly use the provided conda environment, with all necessary dependencies included:
 ```bash
 # Following commands assume you are in the root directory of pyskl (indicated as `$PYSKL`)
 # This command runs well with conda 22.9.0, if you are running an early conda version and got some errors, try to update your conda first
