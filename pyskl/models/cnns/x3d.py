@@ -1,9 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import math
 import torch.nn as nn
-from mmcv.cnn import ConvModule, Swish, build_activation_layer, constant_init, kaiming_init
-from mmcv.runner import load_checkpoint
-from mmcv.utils import _BatchNorm
+from ...utils.nn import (ConvModule, Swish, build_activation_layer, constant_init,
+                         kaiming_init, load_checkpoint, _BatchNorm)
 
 from ...utils import cache_checkpoint, get_root_logger
 from ..builder import BACKBONES

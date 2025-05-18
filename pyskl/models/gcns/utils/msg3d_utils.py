@@ -1,8 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from mmcv.cnn import build_activation_layer
-from mmcv.utils import _BatchNorm
+from ....utils.nn import build_activation_layer, _BatchNorm
 
 from ....utils.graph import k_adjacency, normalize_digraph
 from .init_func import bn_init, conv_init

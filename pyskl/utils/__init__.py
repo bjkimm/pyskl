@@ -4,6 +4,7 @@ from .graph import *  # noqa: F401, F403
 from .misc import *  # noqa: F401, F403
 from .config import Config  # noqa: F401
 from .registry import Registry  # noqa: F401
+from .nn import *  # noqa: F401, F403
 
 try:
     from .visualize import *  # noqa: F401, F403
