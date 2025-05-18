@@ -1,16 +1,13 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 # flake8: noqa: E722
 import argparse
-import mmcv
 import os
 import os.path as osp
 import time
 import torch
 import torch.distributed as dist
-from mmcv import Config
-from mmcv import digit_version as dv
-from mmcv.runner import get_dist_info, init_dist, set_random_seed
-from mmcv.utils import get_git_hash
+from pyskl.utils import (Config, digit_version as dv, get_dist_info, init_dist,
+                        set_random_seed, get_git_hash)
 
 from pyskl import __version__
 from pyskl.apis import init_random_seed, train_model
@@ -86,7 +83,7 @@ def main():
             cfg.resume_from = resume_pth
 
     # create work_dir
-    mmcv.mkdir_or_exist(osp.abspath(cfg.work_dir))
+    os.makedirs(osp.abspath(cfg.work_dir), exist_ok=True)
     # dump config
     cfg.dump(osp.join(cfg.work_dir, osp.basename(args.config)))
     # init logger before other steps
