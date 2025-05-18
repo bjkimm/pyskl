@@ -4,9 +4,9 @@ import platform
 import random
 import torch
 from functools import partial
-from mmcv.parallel import collate
-from mmcv.runner import get_dist_info
-from mmcv.utils import Registry, build_from_cfg, digit_version
+from torch.utils.data._utils.collate import default_collate
+from ..utils import Registry, get_dist_info
+from packaging.version import parse as parse_version
 from torch.utils.data import DataLoader
 
 from .samplers import ClassSpecificDistributedSampler, DistributedSampler
@@ -34,7 +34,7 @@ def build_dataset(cfg, default_args=None):
     Returns:
         Dataset: The constructed dataset.
     """
-    dataset = build_from_cfg(cfg, DATASETS, default_args)
+    dataset = DATASETS.build(cfg, default_args)
     return dataset
 
 
@@ -96,7 +96,7 @@ def build_dataloader(dataset,
         worker_init_fn, num_workers=num_workers, rank=rank,
         seed=seed) if seed is not None else None
 
-    if digit_version(torch.__version__) >= digit_version('1.8.0'):
+    if parse_version(torch.__version__) >= parse_version('1.8.0'):
         kwargs['persistent_workers'] = persistent_workers
 
     data_loader = DataLoader(
@@ -104,7 +104,7 @@ def build_dataloader(dataset,
         batch_size=batch_size,
         sampler=sampler,
         num_workers=num_workers,
-        collate_fn=partial(collate, samples_per_gpu=videos_per_gpu),
+        collate_fn=default_collate,
         pin_memory=pin_memory,
         shuffle=shuffle,
         worker_init_fn=init_fn,

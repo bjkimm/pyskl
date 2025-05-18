@@ -1,5 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import mmcv
+import cv2
 import numpy as np
 import random
 import warnings
@@ -253,10 +253,12 @@ class RandomResizedCrop(RandomCrop):
                  aspect_ratio_range=(3 / 4, 4 / 3)):
         self.area_range = area_range
         self.aspect_ratio_range = aspect_ratio_range
-        if not mmcv.is_tuple_of(self.area_range, float):
+        if (not isinstance(self.area_range, tuple)
+                or not all(isinstance(x, float) for x in self.area_range)):
             raise TypeError(f'Area_range must be a tuple of float, '
                             f'but got {type(area_range)}')
-        if not mmcv.is_tuple_of(self.aspect_ratio_range, float):
+        if (not isinstance(self.aspect_ratio_range, tuple)
+                or not all(isinstance(x, float) for x in self.aspect_ratio_range)):
             raise TypeError(f'Aspect_ratio_range must be a tuple of float, '
                             f'but got {type(aspect_ratio_range)}')
 
@@ -404,12 +406,14 @@ class Resize:
                 f'Scale must be float or tuple of int, but got {type(scale)}')
         self.scale = scale
         self.keep_ratio = keep_ratio
-        self.interpolation = interpolation
+        if interpolation == 'nearest':
+            self.interpolation = cv2.INTER_NEAREST
+        else:
+            self.interpolation = cv2.INTER_LINEAR
 
     def _resize_imgs(self, imgs, new_w, new_h):
         return [
-            mmcv.imresize(
-                img, (new_w, new_h), interpolation=self.interpolation)
+            cv2.resize(img, (new_w, new_h), interpolation=self.interpolation)
             for img in imgs
         ]
 
@@ -441,7 +445,13 @@ class Resize:
         img_h, img_w = results['img_shape']
 
         if self.keep_ratio:
-            new_w, new_h = mmcv.rescale_size((img_w, img_h), self.scale)
+            if isinstance(self.scale, (tuple, list)):
+                max_long_edge = max(self.scale)
+            else:
+                max_long_edge = self.scale
+            ratio = max_long_edge / max(img_w, img_h)
+            new_w = int(img_w * ratio + 0.5)
+            new_h = int(img_h * ratio + 0.5)
         else:
             new_w, new_h = self.scale
 
@@ -514,12 +524,15 @@ class Flip:
         self.right_kp = right_kp
 
     def _flip_imgs(self, imgs, modality):
-        _ = [mmcv.imflip_(img, self.direction) for img in imgs]
+        if self.direction == 'horizontal':
+            imgs = [cv2.flip(img, 1) for img in imgs]
+        else:
+            imgs = [cv2.flip(img, 0) for img in imgs]
         lt = len(imgs)
         if modality == 'Flow':
             # The 1st frame of each 2 frames is flow-x
             for i in range(0, lt, 2):
-                imgs[i] = mmcv.iminvert(imgs[i])
+                imgs[i] = 255 - imgs[i]
         return imgs
 
     def _flip_kps(self, kps, kpscores, img_width):
@@ -647,7 +660,10 @@ class Normalize:
                 imgs[i] = img
 
             for img in imgs:
-                mmcv.imnormalize_(img, self.mean, self.std, self.to_bgr)
+                if self.to_bgr:
+                    img[...] = img[..., ::-1]
+                img -= self.mean
+                img /= self.std
 
             results['imgs'] = imgs
             results['img_norm_cfg'] = dict(
@@ -703,7 +719,8 @@ class CenterCrop(RandomCrop):
 
     def __init__(self, crop_size):
         self.crop_size = _pair(crop_size)
-        if not mmcv.is_tuple_of(self.crop_size, int):
+        if (not isinstance(self.crop_size, tuple)
+                or not all(isinstance(x, int) for x in self.crop_size)):
             raise TypeError(f'Crop_size must be int or tuple of int, '
                             f'but got {type(crop_size)}')
 
@@ -775,7 +792,8 @@ class ThreeCrop:
 
     def __init__(self, crop_size):
         self.crop_size = _pair(crop_size)
-        if not mmcv.is_tuple_of(self.crop_size, int):
+        if (not isinstance(self.crop_size, tuple)
+                or not all(isinstance(x, int) for x in self.crop_size)):
             raise TypeError(f'Crop_size must be int or tuple of int, '
                             f'but got {type(crop_size)}')
 
@@ -846,7 +864,8 @@ class TenCrop:
 
     def __init__(self, crop_size):
         self.crop_size = _pair(crop_size)
-        if not mmcv.is_tuple_of(self.crop_size, int):
+        if (not isinstance(self.crop_size, tuple)
+                or not all(isinstance(x, int) for x in self.crop_size)):
             raise TypeError(f'Crop_size must be int or tuple of int, '
                             f'but got {type(crop_size)}')
 

@@ -2,7 +2,7 @@
 import io
 import numpy as np
 import os.path as osp
-from mmcv.fileio import FileClient
+
 
 from ..builder import PIPELINES
 
@@ -39,8 +39,9 @@ class DecordInit:
                 'Please run "pip install decord" to install Decord first.')
 
         if self.file_client is None:
-            self.file_client = FileClient(self.io_backend, **self.kwargs)
-        file_obj = io.BytesIO(self.file_client.get(filename))
+            self.file_client = open
+        with self.file_client(filename, 'rb') as f:
+            file_obj = io.BytesIO(f.read())
         container = decord.VideoReader(file_obj, num_threads=1)
         return container
 

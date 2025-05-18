@@ -1,7 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
 import cv2
-import mmcv
+from tqdm import tqdm
 import numpy as np
 import os
 import os.path as osp
@@ -124,9 +124,10 @@ def frame_extraction(video_path, short_side):
     while flag:
         if new_h is None:
             h, w, _ = frame.shape
-            new_w, new_h = mmcv.rescale_size((w, h), (short_side, np.Inf))
+            scale = float(short_side) / min(w, h)
+            new_w, new_h = int(w * scale + 0.5), int(h * scale + 0.5)
 
-        frame = mmcv.imresize(frame, (new_w, new_h))
+        frame = cv2.resize(frame, (new_w, new_h))
 
         frames.append(frame)
         frame_path = frame_tmpl.format(cnt + 1)
@@ -155,7 +156,7 @@ def detection_inference(args, frame_paths):
     assert model.CLASSES[0] == 'person', 'We require you to use a detector trained on COCO'
     results = []
     print('Performing Human Detection for each frame')
-    prog_bar = mmcv.ProgressBar(len(frame_paths))
+    prog_bar = tqdm(total=len(frame_paths))
     for frame_path in frame_paths:
         result = inference_detector(model, frame_path)
         # We only keep human detections with score larger than det_score_thr
@@ -170,7 +171,7 @@ def pose_inference(args, frame_paths, det_results):
                             args.device)
     ret = []
     print('Performing Human Pose Estimation for each frame')
-    prog_bar = mmcv.ProgressBar(len(frame_paths))
+    prog_bar = tqdm(total=len(frame_paths))
     for f, d in zip(frame_paths, det_results):
         # Align input format
         d = [dict(bbox=x) for x in list(d)]
@@ -232,7 +233,8 @@ def main():
     num_frame = len(frame_paths)
     h, w, _ = original_frames[0].shape
 
-    config = mmcv.Config.fromfile(args.config)
+    from pyskl.utils import Config
+    config = Config.fromfile(args.config)
     config.data.test.pipeline = [x for x in config.data.test.pipeline if x['type'] != 'DecompressPose']
     # Are we using GCN for Infernece?
     GCN_flag = 'GCN' in config.model.type

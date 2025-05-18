@@ -1,11 +1,9 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import mmcv
 import numpy as np
 import os.path as osp
-from mmcv.utils import print_log
 
 from ..smp import intop
-from ..utils import get_root_logger
+from ..utils import get_root_logger, load, print_log
 from .base import BaseDataset
 from .builder import DATASETS
 
@@ -61,7 +59,7 @@ class GestureDataset(BaseDataset):
         return self.load_pkl_annotations()
 
     def load_pkl_annotations(self):
-        data = mmcv.load(self.ann_file)
+        data = load(self.ann_file)
 
         split, data = data['split'], data['annotations']
 

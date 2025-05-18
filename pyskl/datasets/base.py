@@ -1,14 +1,13 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 # flake8: noqa: E722
 import copy
-import mmcv
 import numpy as np
 import os.path as osp
 import torch
 import warnings
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict, defaultdict
-from mmcv.utils import print_log
+from ..utils import load, dump, print_log
 from torch.utils.data import Dataset
 
 from pyskl.smp import auto_mix2
@@ -79,7 +78,7 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
     # this func should be the same
     def load_json_annotations(self):
         """Load json annotation file to get video information."""
-        video_infos = mmcv.load(self.ann_file)
+        video_infos = load(self.ann_file)
         num_videos = len(video_infos)
         path_key = 'frame_dir' if 'frame_dir' in video_infos[0] else 'filename'
         for i in range(num_videos):
@@ -229,7 +228,7 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
     @staticmethod
     def dump_results(results, out):
         """Dump data to json/yaml/pickle strings or files."""
-        return mmcv.dump(results, out)
+        return dump(results, out)
 
     def prepare_train_frames(self, idx):
         """Prepare the frames for training given the index."""
@@ -248,7 +247,7 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
                 pack = self.cli.get(key)
             if not isinstance(pack, dict):
                 raw_file = results['raw_file']
-                data = mmcv.load(raw_file)
+                data = load(raw_file)
                 pack = data[key]
                 for k in data:
                     try:
@@ -289,7 +288,7 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
                 pack = self.cli.get(key)
             if not isinstance(pack, dict):
                 raw_file = results['raw_file']
-                data = mmcv.load(raw_file)
+                data = load(raw_file)
                 pack = data[key]
                 for k in data:
                     try:

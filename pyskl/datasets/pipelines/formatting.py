@@ -1,9 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import mmcv
 import numpy as np
 import torch
 from collections.abc import Sequence
-from mmcv.parallel import DataContainer as DC
 
 from ..builder import PIPELINES
 
@@ -18,7 +16,7 @@ def to_tensor(data):
         return data
     if isinstance(data, np.ndarray):
         return torch.from_numpy(data)
-    if isinstance(data, Sequence) and not mmcv.is_str(data):
+    if isinstance(data, Sequence) and not isinstance(data, str):
         return torch.tensor(data)
     if isinstance(data, int):
         return torch.LongTensor([data])
@@ -144,7 +142,7 @@ class Collect:
             meta = {}
             for key in self.meta_keys:
                 meta[key] = results[key]
-            data[self.meta_name] = DC(meta, cpu_only=True)
+            data[self.meta_name] = meta
         if self.nested:
             for k in data:
                 data[k] = [data[k]]
